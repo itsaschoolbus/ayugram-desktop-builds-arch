@@ -30,7 +30,7 @@ jobs:
         id: aur
         run: |
           AUR_URL="https://aur.archlinux.org/rpc/?v=5&type=info&arg=ayugram-desktop"
-          VER=$(curl -s "$AUR_URL" | jq -r '.results.Version')
+          VER=$(curl -s "$AUR_URL" | jq -r '.results[0].Version')
           echo "aur_version=$VER" >> $GITHUB_OUTPUT
 
       - name: Get latest github release
