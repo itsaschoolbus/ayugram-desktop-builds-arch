@@ -53,7 +53,7 @@ jobs:
             makepkg -si --noconfirm
             cd ~
             yay -S --noconfirm --needed ronn
-            yay -S --noconfirm --needed ayugram-desktop
+            yay -S --noconfirm --needed ayugram-desktop --mflags "--skipchecksums"
           '
           mkdir -p pkg_cache
           cp /home/builder/.cache/yay/ayugram-desktop/*.pkg.tar.* pkg_cache/
