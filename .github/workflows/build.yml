@@ -1,0 +1,96 @@
+name: Build ayugram-desktop (AUR)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * *"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:latest
+
+    steps:
+      - name: Install base packages
+        run: |
+          pacman-key --init
+          pacman-key --populate archlinux
+          pacman -Syu --noconfirm
+          pacman -S --needed --noconfirm base-devel git sudo curl jq vulkan-headers
+
+          useradd -m builder
+          echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
+          chmod 0440 /etc/sudoers.d/builder
+
+      - name: Get current aur version
+        id: aur
+        run: |
+          AUR_URL="https://aur.archlinux.org/rpc/?v=5&type=info&arg=ayugram-desktop"
+          VER=$(curl -s "$AUR_URL" | jq -r '.results.Version')
+          echo "aur_version=$VER" >> $GITHUB_OUTPUT
+
+      - name: Get latest github release
+        id: check
+        run: |
+          LATEST_TAG=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r .tag_name)
+          echo "latest_tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+
+      - name: Skip if up to date
+        if: ${{ steps.check.outputs.latest_tag == format('v{0}', steps.aur.outputs.aur_version) }}
+        run: |
+          exit 0
+
+      - name: Build pkg
+        run: |
+          sudo -u builder bash -c '
+            cd ~
+            git clone https://aur.archlinux.org/yay.git
+            cd yay
+            makepkg -si --noconfirm
+            cd ~
+            yay -S --noconfirm --needed ronn
+            yay -S --noconfirm --needed ayugram-desktop
+          '
+          mkdir -p pkg_cache
+          cp /home/builder/.cache/yay/ayugram-desktop/*.pkg.tar.* pkg_cache/
+
+      - name: Upload to releases
+        uses: softprops/action-gh-release@v2.3.4
+        with:
+          files: pkg_cache/*.pkg.tar.*
+          tag_name: v${{ steps.aur.outputs.aur_version }}
+          name: ayugram-desktop ${{ steps.aur.outputs.aur_version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cleanup old releases
+        if: ${{ always() }}
+        run: |
+          GH_REPO="${{ github.repository }}"
+          TOKEN="${{ secrets.GITHUB_TOKEN }}"
+
+          releases=$(curl -s -H "Authorization: token $TOKEN" \
+            "https://api.github.com/repos/$GH_REPO/releases?per_page=100" \
+            | jq -r '.[].tag_name')
+
+          count=0
+          for tag in $releases; do
+            count=$((count + 1))
+            if [ $count -le 3 ]; then
+              echo "Keeping $tag"
+              continue
+            fi
+            release_id=$(curl -s -H "Authorization: token $TOKEN" \
+              "https://api.github.com/repos/$GH_REPO/releases/tags/$tag" | jq -r '.id')
+
+            if [ "$release_id" != "null" ]; then
+              curl -s -X DELETE -H "Authorization: token $TOKEN" \
+                "https://api.github.com/repos/$GH_REPO/releases/$release_id"
+            fi
+            curl -s -X DELETE -H "Authorization: token $TOKEN" \
+              "https://api.github.com/repos/$GH_REPO/git/refs/tags/$tag" || true
+          done
