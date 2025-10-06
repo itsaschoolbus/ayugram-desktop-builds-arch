@@ -54,7 +54,7 @@ jobs:
             cd yay
             makepkg -si --noconfirm
             cd ~
-            yay -S --noconfirm --needed ronn
+            yay -S --noconfirm --needed ronn fmt
             yay -S --noconfirm --needed ayugram-desktop --mflags "--skipchecksums"
           '
           mkdir -p pkg_cache
