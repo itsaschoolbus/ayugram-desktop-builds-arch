@@ -20,11 +20,13 @@ jobs:
           pacman-key --init
           pacman-key --populate archlinux
           pacman -Syu --noconfirm
-          pacman -S --needed --noconfirm base-devel git sudo curl jq vulkan-headers
+          pacman -Sy --needed --noconfirm base-devel git sudo curl jq vulkan-headers openssl ca-certificates
 
           useradd -m builder
           echo 'builder ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/builder
           chmod 0440 /etc/sudoers.d/builder
+
+          git config --global http.sslBackend "openssl"
 
       - name: Get current aur version
         id: aur
