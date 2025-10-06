@@ -28,8 +28,7 @@ jobs:
           docker run --rm -v $(pwd):/share archlinux:latest bash -euxc '
             pacman-key --init
             pacman-key --populate archlinux
-            pacman -Syu --noconfirm
-            pacman -Sy --needed --noconfirm base-devel git sudo curl jq vulkan-headers openssl ca-certificates
+            pacman -Syu --noconfirm base-devel git sudo curl jq vulkan-headers openssl ca-certificates
 
             useradd -m builder
             echo "builder ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builder
@@ -52,7 +51,8 @@ jobs:
               cd ~
               git clone https://aur.archlinux.org/yay.git
               cd yay && makepkg -si --noconfirm
-              yay -S --noconfirm --needed ronn fmt ayugram-desktop
+              yay -S --noconfirm --needed ronn fmt
+              yay -S --noconfirm --needed ayugram-desktop --mflags "--skipchecksums"
             "
 
             mkdir -p /share/pkg
