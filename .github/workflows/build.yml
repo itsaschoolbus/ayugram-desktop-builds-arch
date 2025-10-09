@@ -13,8 +13,24 @@ jobs:
     runs-on: ubuntu-22.04
     
     steps:
+      - name: Check version
+        run: |
+          sudo apt install jq -y
+          AUR_URL="https://aur.archlinux.org/rpc/?v=5&type=info&arg=ayugram-desktop"
+          AUR_VER=$(curl -s "$AUR_URL" | jq -r ".results[0].Version")
+
+          LATEST_TAG=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r .tag_name)
+
+          echo "AUR_VERSION=$AUR_VER" >> $GITHUB_ENV
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+          if [ "$LATEST_TAG" = "v$AUR_VER" ]; then
+            echo "CONTINUE_BUILD=false" >> $GITHUB_ENV
+          fi
+
       - name: Free disk space
         uses: jlumbroso/free-disk-space@main
+        if: ${{ env.CONTINUE_BUILD != 'false' }}
         with:
           tool-cache: true
           android: true
@@ -26,10 +42,12 @@ jobs:
 
       - name: Set swap to 8GB
         uses: pierotofy/set-swap-space@master
+        if: ${{ env.CONTINUE_BUILD != 'false' }}
         with:
           swap-size-gb: 8
 
       - name: Build pkg
+        if: ${{ env.CONTINUE_BUILD != 'false' }}
         run: |
           sudo apt install docker -y
           docker run --rm -v $(pwd):/share archlinux:latest bash -euxc '
@@ -42,18 +60,6 @@ jobs:
             chmod 0440 /etc/sudoers.d/builder
 
             git config --global http.sslBackend "openssl"
-
-            AUR_URL="https://aur.archlinux.org/rpc/?v=5&type=info&arg=ayugram-desktop"
-            VER=$(curl -s "$AUR_URL" | jq -r ".results[0].Version")
-            echo "AUR_VERSION=$VER" >> /share/versioninfo
-
-            LATEST_TAG=$(curl -s "https://api.github.com/repos/${{ github.repository }}/releases/latest" | jq -r .tag_name)
-            echo "LATEST_TAG=$LATEST_TAG" >> /share/versioninfo
-
-            if [ "$LATEST_TAG" = "v$VER" ]; then
-              exit 0
-            fi
-
             sudo -u builder bash -c "
               cd ~
               git clone https://aur.archlinux.org/yay.git
@@ -67,14 +73,9 @@ jobs:
             pacman -Scc --noconfirm
           '
 
-      - name: Load version info
-        run: |
-          source versioninfo
-          echo "AUR_VERSION=$AUR_VERSION" >> $GITHUB_ENV
-          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
-
       - name: Upload to releases
         uses: softprops/action-gh-release@v2.3.4
+        if: ${{ env.CONTINUE_BUILD != 'false' }}
         with:
           files: pkg/*.pkg.tar.*
           tag_name: v${{ env.AUR_VERSION }}
